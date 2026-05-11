@@ -1,30 +1,58 @@
 #!/data/data/com.termux/files/usr/bin/bash
+set -e
 
 clear
 echo "🚀 Installing Khutba-Connected..."
 
-# Update system
+# -----------------------------
+# 1. UPDATE SYSTEM
+# -----------------------------
 pkg update -y && pkg upgrade -y
 
-# Install dependencies
+# -----------------------------
+# 2. INSTALL DEPENDENCIES
+# -----------------------------
 pkg install -y nodejs git curl
 
-# Go home
-cd ~
+# Ensure storage access (important for Android)
+termux-setup-storage || true
 
-# Remove old install if exists
+# -----------------------------
+# 3. CLEAN OLD INSTALL
+# -----------------------------
+cd ~
 rm -rf Khutba-Connected
 
-# Clone repo
+# -----------------------------
+# 4. CLONE PROJECT
+# -----------------------------
+echo "📦 Cloning repository..."
 git clone https://github.com/YounesMaat/Khutba-Connected.git
 
-# Enter correct folder (IMPORTANT)
-cd Khutba-Connected/sermon-app
+# -----------------------------
+# 5. VERIFY STRUCTURE
+# -----------------------------
+cd Khutba-Connected
 
-# Install Node dependencies
+if [ ! -d "sermon-app" ]; then
+  echo "❌ ERROR: sermon-app folder not found!"
+  echo "Check repository structure."
+  exit 1
+fi
+
+cd sermon-app
+
+echo "📂 Entered project folder"
+
+# -----------------------------
+# 6. INSTALL NODE DEPENDENCIES
+# -----------------------------
+echo "📦 Installing npm dependencies..."
 npm install
 
-# Create widget shortcuts
+# -----------------------------
+# 7. CREATE TERMUX WIDGETS
+# -----------------------------
 mkdir -p ~/.shortcuts
 
 # START SERVER
@@ -34,6 +62,8 @@ cat > ~/.shortcuts/start-khutba << 'EOF'
 cd ~/Khutba-Connected/sermon-app
 
 termux-wake-lock
+
+echo "🚀 Starting server..."
 
 node server.js &
 
@@ -46,13 +76,18 @@ EOF
 cat > ~/.shortcuts/stop-khutba << 'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 
-pkill node
+echo "🛑 Stopping server..."
+pkill -f node
 EOF
 
 chmod +x ~/.shortcuts/start-khutba
 chmod +x ~/.shortcuts/stop-khutba
 
+# -----------------------------
+# 8. DONE
+# -----------------------------
 echo ""
 echo "✅ INSTALL COMPLETE"
-echo "👉 Add Termux Widget to home screen"
-echo "👉 Use Start Khutba button"
+echo "📱 Add Termux Widget to your home screen"
+echo "▶ Use: Start Khutba"
+echo "🛑 Use: Stop Khutba"
