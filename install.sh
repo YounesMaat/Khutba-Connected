@@ -30,66 +30,64 @@ echo "📦 Installing npm dependencies..."
 
 npm install
 
-# QR support (fix your issue)
+# QR support (needed for your system)
 npm install qrcode qrcode-terminal
 
 # ----------------------------
-# 4. CREATE SHORTCUT SYSTEM
+# 4. CREATE WIDGET SYSTEM
 # ----------------------------
-echo "📱 Creating Termux shortcuts..."
+echo "📱 Creating Termux widgets..."
 
 mkdir -p ~/.shortcuts
 
-# START SERVER
+# ----------------------------
+# START WIDGET
+# ----------------------------
 cat > ~/.shortcuts/start-khutba << 'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 
 cd ~/Khutba-Connected/sermon-app
 
-echo "🚀 Starting server..."
+echo "🚀 Starting Khutba server..."
 
-pkill node
+# kill only this app instance
+pkill -f "node server.js"
 
 termux-wake-lock
-
-nohup node server.js > server.log 2>&1 & disown
-
-sleep 4
-
-termux-open-url http://127.0.0.1:3000
-EOF
-
-# STOP SERVER
-cat > ~/.shortcuts/stop-khutba << 'EOF'
-#!/data/data/com.termux/files/usr/bin/bash
-
-echo "🛑 Stopping server..."
-pkill node
-EOF
-
-chmod +x ~/.shortcuts/start-khutba
-chmod +x ~/.shortcuts/stop-khutba
-
-# ----------------------------
-# 5. AUTO START AFTER INSTALL
-# ----------------------------
-echo "🚀 Launching server automatically..."
-
-pkill node
 
 nohup node server.js > server.log 2>&1 & disown
 
 sleep 2
 
 termux-open-url http://127.0.0.1:3000
+EOF
 
 # ----------------------------
-# 6. DONE MESSAGE
+# STOP WIDGET
+# ----------------------------
+cat > ~/.shortcuts/stop-khutba << 'EOF'
+#!/data/data/com.termux/files/usr/bin/bash
+
+echo "🛑 Stopping Khutba server..."
+
+pkill -f "node server.js"
+
+termux-wake-unlock
+EOF
+
+# permissions
+chmod +x ~/.shortcuts/start-khutba
+chmod +x ~/.shortcuts/stop-khutba
+
+# ----------------------------
+# 5. FINAL MESSAGE
 # ----------------------------
 echo ""
-echo "✅ INSTALL COMPLETE __"
-echo "📱 Open Termux Widget"
-echo "▶ Start Khutba"
-echo "🛑 Stop Khutba"
+echo "✅ INSTALL COMPLETE"
 echo ""
-echo "📡 Server running at: http://127.0.0.1:3000"
+echo "📱 Add Termux Widget to home screen"
+echo "▶ Start Khutba"
+echo "⏹ Stop Khutba"
+echo ""
+echo "📡 Server will run at:"
+echo "http://127.0.0.1:3000"
