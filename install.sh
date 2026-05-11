@@ -58,7 +58,7 @@ setsid node server.js > server.log 2>&1 < /dev/null &
 
 sleep 3
 
-termux-open-url http://127.0.0.1:3000
+termux-open-url http://127.0.0.1:3000/admin.html
 EOF
 
 # ----------------------------
