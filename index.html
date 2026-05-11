@@ -28,13 +28,11 @@
             --glass: rgba(30, 41, 59, 0.7);
         }
 
-        * {
-            box-sizing: border-box;
-        }
-
         body {
             margin: 0;
+
             background: var(--bg);
+
             background-image:
                 radial-gradient(circle at top right, #1e293b, #020617);
 
@@ -206,9 +204,10 @@
             color: var(--text-dim);
 
             font-size: 12px;
-            font-weight: 600;
 
             cursor: pointer;
+
+            font-weight: 600;
 
             padding: 5px 10px;
         }
@@ -252,7 +251,7 @@
         Loading...
     </div>
 
-    <button id="unlockBtn" onclick="unlockAudio()">
+    <button id="unlockBtn" onclick="unlock()">
         <span id="ui-icon">🔓</span>
         <span id="ui-btn-text">Enable Audio</span>
     </button>
@@ -261,13 +260,12 @@
         📥 Installer l'Application
     </button>
 
-    <!-- IMPORTANT SAFARI FIXES -->
+    <!-- SAFARI FIX -->
     <audio
         id="audio"
         playsinline
         webkit-playsinline
         preload="auto"
-        autoplay
     ></audio>
 
     <div id="iosTip" class="ios-tip"></div>
@@ -275,6 +273,7 @@
 </div>
 
 <div class="lang-switcher">
+
     <span class="lang-link" onclick="setLanguage('en')" id="ln-en">
         English
     </span>
@@ -283,9 +282,10 @@
         العربية
     </span>
 
-    <span class="lang-link active" onclick="setLanguage('fr')" id="ln-fr">
+    <span class="lang-link" onclick="setLanguage('fr')" id="ln-fr">
         Français
     </span>
+
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
@@ -295,13 +295,16 @@
 const SILENT_WAV =
     "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
 
-const audio = document.getElementById("audio");
+const audio =
+    document.getElementById("audio");
 
-const noSleep = new NoSleep();
+const noSleep =
+    new NoSleep();
 
-const socket = io({
-    transports: ["websocket", "polling"]
-});
+const socket =
+    io({
+        transports: ["websocket", "polling"]
+    });
 
 let unlocked = false;
 
@@ -321,7 +324,7 @@ const translations = {
         btnReady: "Audio Active",
         playing: "Streaming live...",
         pageLabel: "Page",
-        error: "Audio failed. Tap again."
+        error: "Tap again to enable audio."
     },
 
     ar: {
@@ -333,7 +336,7 @@ const translations = {
         btnReady: "الصوت نشط",
         playing: "جاري البث...",
         pageLabel: "الصفحة",
-        error: "فشل الصوت. اضغط مجدداً"
+        error: "اضغط مجدداً لتفعيل الصوت"
     },
 
     fr: {
@@ -345,55 +348,54 @@ const translations = {
         btnReady: "Audio Prêt",
         playing: "Lecture en direct...",
         pageLabel: "Page",
-        error: "Erreur audio. Cliquez à nouveau."
+        error: "Cliquez à nouveau pour activer."
     }
 };
 
 //
-// SAFARI AUDIO UNLOCK
+// AUDIO UNLOCK
 //
-async function unlockAudio() {
+function unlock() {
 
-    try {
+    noSleep.enable();
 
-        noSleep.enable();
+    audio.src = SILENT_WAV;
 
-        audio.setAttribute("playsinline", "");
-        audio.setAttribute("webkit-playsinline", "");
+    audio.loop = true;
 
-        // Safari autoplay trick
-        audio.muted = true;
+    // SAFARI autoplay trick
+    audio.muted = true;
 
-        audio.src = SILENT_WAV;
+    const promise = audio.play();
 
-        audio.loop = true;
+    if (promise !== undefined) {
 
-        await audio.play();
+        promise.then(() => {
 
-        // unmute AFTER successful play
-        audio.muted = false;
+            audio.muted = false;
 
-        unlocked = true;
+            unlocked = true;
 
-        updateUI();
+            updateUI();
 
-        updateMediaSession();
+            updateMediaSession();
 
-        socket.emit("getState");
+            socket.emit("getState");
 
-    } catch (err) {
+        }).catch((e) => {
 
-        console.error(err);
+            console.log(e);
 
-        document.getElementById("status").innerText =
-            translations[currentLang].error;
+            document.getElementById("status").innerText =
+                translations[currentLang].error;
+        });
     }
 }
 
 //
-// PLAY EVENT
+// PLAY STREAM
 //
-socket.on("play", async (payload) => {
+socket.on("play", (payload) => {
 
     if (!unlocked) return;
 
@@ -416,31 +418,24 @@ socket.on("play", async (payload) => {
         "?v=" +
         Date.now();
 
-    try {
+    // IMPORTANT:
+    // NO audio.load() for Safari
 
-        // IMPORTANT:
-        // DO NOT CALL audio.load() on Safari
+    audio.loop = false;
 
-        audio.loop = false;
+    audio.src = streamUrl;
 
-        audio.src = streamUrl;
+    const playPromise = audio.play();
 
-        await audio.play();
+    if (playPromise !== undefined) {
 
-    } catch (err) {
+        playPromise.catch((e) => {
 
-        console.error("Safari playback failed:", err);
+            console.log("Playback failed:", e);
 
-        // fallback silent unlock again
-        audio.src = SILENT_WAV;
-
-        audio.loop = true;
-
-        try {
-            await audio.play();
-        } catch (e) {
-            console.error(e);
-        }
+            document.getElementById("status").innerText =
+                translations[currentLang].error;
+        });
     }
 });
 
@@ -455,11 +450,15 @@ function updateUI() {
         t.title;
 
     document.body.dir =
-        currentLang === "ar" ? "rtl" : "ltr";
+        currentLang === "ar"
+            ? "rtl"
+            : "ltr";
 
     document
         .querySelectorAll(".lang-link")
-        .forEach(el => el.classList.remove("active"));
+        .forEach(el =>
+            el.classList.remove("active")
+        );
 
     document
         .getElementById(`ln-${currentLang}`)
@@ -552,7 +551,7 @@ function updateMediaSession() {
 }
 
 //
-// PWA + IOS DETECTION
+// IOS DETECTION
 //
 (function init() {
 
@@ -586,9 +585,8 @@ function updateMediaSession() {
 
             window.deferredPrompt = e;
 
-            document.getElementById(
-                "installBtn"
-            ).style.display = "block";
+            document.getElementById("installBtn")
+                .style.display = "block";
         }
     );
 
