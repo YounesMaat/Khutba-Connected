@@ -38,21 +38,11 @@
             background: linear-gradient(135deg, var(--accent), #1d4ed8); color: white; border: none;
             padding: 20px 32px; border-radius: 20px; font-size: 18px; font-weight: 800; width: 100%;
             cursor: pointer; box-shadow: 0 10px 25px rgba(37, 99, 235, 0.4); transition: 0.3s;
-            -webkit-tap-highlight-color: transparent; outline: none;
+            outline: none;
         }
-        button:active { transform: scale(0.96); }
-        button.unlocked { background: rgba(16, 185, 129, 0.1); color: var(--success); pointer-events: none; box-shadow: none; border: 1px solid var(--success); }
+        button.unlocked { background: rgba(16, 185, 129, 0.1); color: var(--success); pointer-events: none; border: 1px solid var(--success); box-shadow: none; }
         
-        #installBtn { 
-            display: none; margin-top: 15px; background: rgba(255,255,255,0.05); 
-            border: 1px solid var(--accent); box-shadow: none; padding: 12px; font-size: 14px;
-        }
-
-        .lang-switcher { margin-top: 30px; display: flex; gap: 15px; }
-        .lang-link { color: var(--text-dim); font-size: 12px; cursor: pointer; font-weight: 600; padding: 5px 10px; }
-        .lang-link.active { color: var(--accent); background: rgba(59, 130, 246, 0.1); border-radius: 10px; }
-        
-        .ios-tip { margin-top: 25px; font-size: 11px; color: var(--text-dim); opacity: 0.8; display: none; }
+        .ios-tip { margin-top: 25px; font-size: 11px; color: var(--text-dim); }
     </style>
 </head>
 <body>
@@ -70,104 +60,40 @@
         <span id="ui-icon">🔓</span> <span id="ui-btn-text">Enable Audio</span>
     </button>
 
-    <button id="installBtn">📥 Installer l'Application</button>
-
-    <!-- Audio Unique -->
-    <audio id="audio" playsinline preload="auto"></audio>
-
+    <audio id="audio" playsinline></audio>
     <div id="iosTip" class="ios-tip"></div>
-</div>
-
-<div class="lang-switcher">
-    <span class="lang-link" onclick="setLanguage('en')" id="ln-en">English</span>
-    <span class="lang-link" onclick="setLanguage('ar')" id="ln-ar">العربية</span>
-    <span class="lang-link" onclick="setLanguage('fr')" id="ln-fr">Français</span>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script>
-const SILENT_WAV = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
 const audio = document.getElementById("audio");
 const noSleep = new NoSleep();
-const socket = io({ transports: ['websocket', 'polling'] });
+const socket = io();
 
 let unlocked = false;
-let lastPayload = null;
+let lastAudioPath = null;
 let currentLang = localStorage.getItem('preferredLang') || 'fr';
 
 const translations = {
-    en: { title: "Live Jumu'aa", waiting: "WAITING", live: "LIVE", instruction: "Tap button to start audio.", btnEnable: "Enable Audio", btnReady: "Audio Active", playing: "Streaming live...", pageLabel: "Page", error: "Tap again to fix" },
-    ar: { title: "خطبة الجمعة المباشرة", waiting: "في الانتظار", live: "مباشر", instruction: "اضغط لتفعيل الصوت", btnEnable: "تفعيل الصوت", btnReady: "الصوت نشط", playing: "جاري البث...", pageLabel: "الصفحة", error: "خطأ: اضغط مجدداً" },
-    fr: { title: "Jumu'aa en Direct", waiting: "EN ATTENTE", live: "EN DIRECT", instruction: "Appuyez pour activer l'audio.", btnEnable: "Activer l'Audio", btnReady: "Audio Prêt", playing: "Lecture en direct...", pageLabel: "Page", error: "Erreur: Cliquez à nouveau" }
+    en: { title: "Live Jumu'aa", waiting: "WAITING", live: "LIVE", instruction: "Tap to start audio.", btnReady: "Audio Active", playing: "Streaming live...", pageLabel: "Page" },
+    ar: { title: "خطبة الجمعة المباشرة", waiting: "في الانتظار", live: "مباشر", instruction: "اضغط لتفعيل الصوت", btnReady: "الصوت نشط", playing: "جاري البث...", pageLabel: "الصفحة" },
+    fr: { title: "Jumu'aa en Direct", waiting: "EN ATTENTE", live: "EN DIRECT", instruction: "Appuyez pour activer l'audio.", btnReady: "Audio Prêt", playing: "Lecture en direct...", pageLabel: "Page" }
 };
 
-// --- 1. GESTION DU DÉVERROUILLAGE (IPHONE FIX) ---
-function unlock() {
-    // Activer NoSleep sur le clic utilisateur
-    noSleep.enable();
-
-    // Démarrer l'audio avec du silence en boucle pour garder le canal ouvert
-    audio.src = SILENT_WAV;
-    audio.loop = true;
-    
-    audio.play().then(() => {
-        unlocked = true;
-        updateUI();
-        updateMediaSession();
-        socket.emit("getState");
-        console.log("Audio Unlocked & Loop Silent Playing");
-    }).catch(err => {
-        console.error("Unlock failed", err);
-        document.getElementById("status").innerText = translations[currentLang].error;
-    });
-}
-
-// --- 2. RÉCEPTION DU DIRECT ---
-socket.on("play", (payload) => {
-    if (!unlocked || !payload || !payload.audio) return;
-    if (lastPayload && lastPayload.audio === payload.audio) return;
-    
-    lastPayload = payload;
-    updateUI();
-
-    const streamUrl = window.location.origin + payload.audio + "?v=" + Date.now();
-    
-    // On bascule du silence vers le vrai flux SANS faire pause()
-    audio.loop = false;
-    audio.src = streamUrl;
-    audio.load();
-    
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-        playPromise.catch(error => {
-            console.log("Stream failed, returning to silence");
-            audio.src = SILENT_WAV;
-            audio.loop = true;
-            audio.play();
-        });
-    }
-});
-
-// --- 3. UI & INSTALLATION ---
-function updateUI() {
+function updateUI(payload) {
     const t = translations[currentLang];
     document.getElementById("ui-title").innerText = t.title;
-    document.body.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
-    
-    document.querySelectorAll('.lang-link').forEach(el => el.classList.remove('active'));
-    document.getElementById(`ln-${currentLang}`).classList.add('active');
 
     if (unlocked) {
-        const btn = document.getElementById("unlockBtn");
-        btn.classList.add("unlocked");
+        document.getElementById("unlockBtn").classList.add("unlocked");
         document.getElementById("ui-icon").innerText = "✅";
         document.getElementById("ui-btn-text").innerText = t.btnReady;
     }
 
-    if (lastPayload && lastPayload.audio) {
+    if (payload && payload.audio) {
         document.getElementById("liveTag").classList.add("is-live");
         document.getElementById("liveText").innerText = t.live;
-        document.getElementById("page").innerText = `${t.pageLabel} ${lastPayload.page}`;
+        document.getElementById("page").innerText = `${t.pageLabel} ${payload.page}`;
         document.getElementById("status").innerText = t.playing;
     } else {
         document.getElementById("liveTag").classList.remove("is-live");
@@ -177,51 +103,46 @@ function updateUI() {
     }
 }
 
-(function initPWA() {
-    const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
-    const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent);
-    const iosTip = document.getElementById('iosTip');
-
-    if (isStandalone) {
-        iosTip.style.display = 'block';
-        iosTip.innerHTML = `<b style="color:var(--success)">✓ Mode Application Activé</b>`;
-    } else if (isIos) {
-        iosTip.style.display = 'block';
-        iosTip.innerHTML = `iPhone : Appuyez sur Partager puis "Sur l'écran d'accueil"`;
-    }
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        window.deferredPrompt = e;
-        document.getElementById('installBtn').style.display = 'block';
+function unlock() {
+    noSleep.enable();
+    // Joue un son vide pour déverrouiller iOS
+    audio.src = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+    audio.play().then(() => {
+        unlocked = true;
+        updateUI();
+        socket.emit("getState");
     });
-})();
-
-document.getElementById('installBtn').onclick = async () => {
-    if (window.deferredPrompt) {
-        window.deferredPrompt.prompt();
-        window.deferredPrompt = null;
-    }
-};
-
-function updateMediaSession() {
-    if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = new MediaMetadata({
-            title: translations[currentLang].title,
-            artist: "Masjid Live",
-            artwork: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }]
-        });
-    }
 }
 
-function setLanguage(lang) {
-    currentLang = lang;
-    localStorage.setItem('preferredLang', lang);
-    updateUI();
+socket.on("play", (payload) => {
+    if (!unlocked || !payload || !payload.audio) return;
+    
+    // Eviter de relancer si c'est déjà le même fichier
+    if (lastAudioPath === payload.audio) {
+        updateUI(payload);
+        return;
+    }
+    
+    lastAudioPath = payload.audio;
+    updateUI(payload);
+
+    // RESET COMPLET DE L'AUDIO (Crucial pour iOS)
+    audio.pause();
+    audio.src = payload.audio + "?v=" + Date.now();
+    audio.load();
+    
+    // Petit délai pour laisser le temps au buffer sur iPhone
+    setTimeout(() => {
+        audio.play().catch(e => console.log("Playback blocked"));
+    }, 100);
+});
+
+// Détection iPhone pour le message d'aide
+if (/iPhone|iPad|iPod/.test(navigator.userAgent) && !window.navigator.standalone) {
+    document.getElementById('iosTip').innerText = 'iPhone: Share > Add to Home Screen';
 }
 
 socket.on("connect", () => { if(unlocked) socket.emit("getState"); });
-document.addEventListener('DOMContentLoaded', updateUI);
 </script>
 </body>
 </html>
