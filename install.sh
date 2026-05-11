@@ -54,7 +54,7 @@ termux-wake-lock
 
 nohup node server.js > server.log 2>&1 & disown
 
-sleep 2
+sleep 4
 
 termux-open-url http://127.0.0.1:3000
 EOF
