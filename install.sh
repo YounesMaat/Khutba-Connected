@@ -32,28 +32,29 @@ npm install
 npm install qrcode qrcode-terminal
 
 # ----------------------------
-# 4. CREATE WIDGETS ONLY
+# 4. CREATE WIDGET SYSTEM
 # ----------------------------
 echo "📱 Creating Termux widgets..."
 
 mkdir -p ~/.shortcuts
 
 # ----------------------------
-# START WIDGET
+# START WIDGET (FIXED STABLE VERSION)
 # ----------------------------
 cat > ~/.shortcuts/start-khutba << 'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 
-cd ~/Khutba-Connected/sermon-app || exit
-
 echo "🚀 Starting Khutba server..."
 
-# Kill ONLY this server instance
+cd "$HOME/Khutba-Connected/sermon-app" || exit 1
+
+# kill old instance safely
 pkill -f "node server.js"
 
 termux-wake-lock
 
-nohup node server.js > server.log 2>&1 & disown < /dev/null
+# IMPORTANT: full daemon mode fix
+nohup node server.js > server.log 2>&1 & disown
 
 sleep 3
 
@@ -61,7 +62,7 @@ termux-open-url http://127.0.0.1:3000
 EOF
 
 # ----------------------------
-# STOP WIDGET
+# STOP WIDGET (CLEAN)
 # ----------------------------
 cat > ~/.shortcuts/stop-khutba << 'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
@@ -73,19 +74,26 @@ pkill -f "node server.js"
 termux-wake-unlock
 EOF
 
-# permissions
 chmod +x ~/.shortcuts/start-khutba
 chmod +x ~/.shortcuts/stop-khutba
 
 # ----------------------------
-# 5. FINAL MESSAGE
+# 5. IMPORTANT NOTE (NO AUTO START)
 # ----------------------------
 echo ""
-echo "✅ INSTALL COMPLETE n"
+echo "⚠️ IMPORTANT:"
+echo "Do NOT auto-start server after install."
+echo "Use ONLY widget to start/stop."
+echo ""
+
+# ----------------------------
+# 6. DONE MESSAGE
+# ----------------------------
+echo "✅ INSTALL COMPLETE t"
 echo ""
 echo "📱 Add Termux Widget to home screen"
 echo "▶ Start Khutba"
 echo "⏹ Stop Khutba"
 echo ""
-echo "📡 Server will run at:"
+echo "📡 Server runs at:"
 echo "http://127.0.0.1:3000"
