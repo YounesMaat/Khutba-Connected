@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Jumu'aa Connected | Listener</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/nosleep/1.0.0/NoSleep.min.js"></script>
+    <style>
+        :root {
+            --bg: #020617; --accent: #3b82f6; --success: #10b981;
+            --danger: #ef4444; --text-main: #f8fafc; --text-dim: #94a3b8;
+            --glass: rgba(30, 41, 59, 0.7);
+        }
+        body {
+            margin: 0; background: var(--bg); background-image: radial-gradient(circle at top right, #1e293b, #020617);
+            height: 100dvh; display: flex; flex-direction: column; justify-content: center; align-items: center;
+            font-family: -apple-system, system-ui, sans-serif; color: var(--text-main); overflow: hidden;
+        }
+        .card {
+            width: 85%; max-width: 380px; background: var(--glass); backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 32px; padding: 40px 24px; text-align: center; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .live-tag {
+            display: inline-flex; align-items: center; gap: 8px; background: rgba(0, 0, 0, 0.3);
+            padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 800; margin-bottom: 24px;
+        }
+        .dot { width: 8px; height: 8px; background: var(--text-dim); border-radius: 50%; }
+        .is-live .dot { background: var(--danger); box-shadow: 0 0 10px var(--danger); animation: blink 1.5s infinite; }
+        @keyframes blink { 50% { opacity: 0.4; } }
+        .page { font-size: 28px; font-weight: 900; color: var(--accent); margin-bottom: 20px; min-height: 34px; }
+        .status { font-size: 14px; color: var(--text-dim); margin-bottom: 30px; line-height: 1.5; min-height: 45px; }
+        
+        button {
+            background: linear-gradient(135deg, var(--accent), #1d4ed8); color: white; border: none;
+            padding: 20px 32px; border-radius: 20px; font-size: 18px; font-weight: 800; width: 100%;
+            cursor: pointer; box-shadow: 0 10px 25px rgba(37, 99, 235, 0.4); transition: 0.3s;
+            -webkit-tap-highlight-color: transparent; outline: none;
+        }
+        button:active { transform: scale(0.96); }
+        button.unlocked { background: rgba(16, 185, 129, 0.1); color: var(--success); pointer-events: none; box-shadow: none; border: 1px solid var(--success); }
+        
+        #installBtn { 
+            display: none; margin-top: 15px; background: rgba(255,255,255,0.05); 
+            border: 1px solid var(--accent); box-shadow: none; padding: 12px; font-size: 14px;
+        }
+
+        .lang-switcher { margin-top: 30px; display: flex; gap: 15px; }
+        .lang-link { color: var(--text-dim); font-size: 12px; cursor: pointer; font-weight: 600; padding: 5px 10px; }
+        .lang-link.active { color: var(--accent); background: rgba(59, 130, 246, 0.1); border-radius: 10px; }
+        
+        .ios-tip { margin-top: 25px; font-size: 11px; color: var(--text-dim); opacity: 0.8; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="live-tag" id="liveTag">
+        <div class="dot"></div>
+        <span id="liveText">WAITING</span>
+    </div>
+    <h2 id="ui-title">Live Jumu'aa</h2>
+    <div id="page" class="page">...</div>
+    <div id="status" class="status">Loading...</div>
+    
+    <button id="unlockBtn" onclick="unlock()">
+        <span id="ui-icon">🔓</span> <span id="ui-btn-text">Enable Audio</span>
+    </button>
+
+    <button id="installBtn">📥 Installer l'Application</button>
+
+    <!-- Audio Unique -->
+    <audio id="audio" playsinline preload="auto"></audio>
+
+    <div id="iosTip" class="ios-tip"></div>
+</div>
+
+<div class="lang-switcher">
+    <span class="lang-link" onclick="setLanguage('en')" id="ln-en">English</span>
+    <span class="lang-link" onclick="setLanguage('ar')" id="ln-ar">العربية</span>
+    <span class="lang-link" onclick="setLanguage('fr')" id="ln-fr">Français</span>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const SILENT_WAV = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+const audio = document.getElementById("audio");
+const noSleep = new NoSleep();
+const socket = io({ transports: ['websocket', 'polling'] });
+
+let unlocked = false;
+let lastPayload = null;
+let currentLang = localStorage.getItem('preferredLang') || 'fr';
+
+const translations = {
+    en: { title: "Live Jumu'aa", waiting: "WAITING", live: "LIVE", instruction: "Tap button to start audio.", btnEnable: "Enable Audio", btnReady: "Audio Active", playing: "Streaming live...", pageLabel: "Page", error: "Tap again to fix" },
+    ar: { title: "خطبة الجمعة المباشرة", waiting: "في الانتظار", live: "مباشر", instruction: "اضغط لتفعيل الصوت", btnEnable: "تفعيل الصوت", btnReady: "الصوت نشط", playing: "جاري البث...", pageLabel: "الصفحة", error: "خطأ: اضغط مجدداً" },
+    fr: { title: "Jumu'aa en Direct", waiting: "EN ATTENTE", live: "EN DIRECT", instruction: "Appuyez pour activer l'audio.", btnEnable: "Activer l'Audio", btnReady: "Audio Prêt", playing: "Lecture en direct...", pageLabel: "Page", error: "Erreur: Cliquez à nouveau" }
+};
+
+// --- 1. GESTION DU DÉVERROUILLAGE (IPHONE FIX) ---
+function unlock() {
+    // Activer NoSleep sur le clic utilisateur
+    noSleep.enable();
+
+    // Démarrer l'audio avec du silence en boucle pour garder le canal ouvert
+    audio.src = SILENT_WAV;
+    audio.loop = true;
+    
+    audio.play().then(() => {
+        unlocked = true;
+        updateUI();
+        updateMediaSession();
+        socket.emit("getState");
+        console.log("Audio Unlocked & Loop Silent Playing");
+    }).catch(err => {
+        console.error("Unlock failed", err);
+        document.getElementById("status").innerText = translations[currentLang].error;
+    });
+}
+
+// --- 2. RÉCEPTION DU DIRECT ---
+socket.on("play", (payload) => {
+    if (!unlocked || !payload || !payload.audio) return;
+    if (lastPayload && lastPayload.audio === payload.audio) return;
+    
+    lastPayload = payload;
+    updateUI();
+
+    const streamUrl = window.location.origin + payload.audio + "?v=" + Date.now();
+    
+    // On bascule du silence vers le vrai flux SANS faire pause()
+    audio.loop = false;
+    audio.src = streamUrl;
+    audio.load();
+    
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+        playPromise.catch(error => {
+            console.log("Stream failed, returning to silence");
+            audio.src = SILENT_WAV;
+            audio.loop = true;
+            audio.play();
+        });
+    }
+});
+
+// --- 3. UI & INSTALLATION ---
+function updateUI() {
+    const t = translations[currentLang];
+    document.getElementById("ui-title").innerText = t.title;
+    document.body.dir = currentLang === 'ar' ? 'rtl' : 'ltr';
+    
+    document.querySelectorAll('.lang-link').forEach(el => el.classList.remove('active'));
+    document.getElementById(`ln-${currentLang}`).classList.add('active');
+
+    if (unlocked) {
+        const btn = document.getElementById("unlockBtn");
+        btn.classList.add("unlocked");
+        document.getElementById("ui-icon").innerText = "✅";
+        document.getElementById("ui-btn-text").innerText = t.btnReady;
+    }
+
+    if (lastPayload && lastPayload.audio) {
+        document.getElementById("liveTag").classList.add("is-live");
+        document.getElementById("liveText").innerText = t.live;
+        document.getElementById("page").innerText = `${t.pageLabel} ${lastPayload.page}`;
+        document.getElementById("status").innerText = t.playing;
+    } else {
+        document.getElementById("liveTag").classList.remove("is-live");
+        document.getElementById("liveText").innerText = t.waiting;
+        document.getElementById("page").innerText = "...";
+        document.getElementById("status").innerText = t.instruction;
+    }
+}
+
+(function initPWA() {
+    const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+    const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent);
+    const iosTip = document.getElementById('iosTip');
+
+    if (isStandalone) {
+        iosTip.style.display = 'block';
+        iosTip.innerHTML = `<b style="color:var(--success)">✓ Mode Application Activé</b>`;
+    } else if (isIos) {
+        iosTip.style.display = 'block';
+        iosTip.innerHTML = `iPhone : Appuyez sur Partager puis "Sur l'écran d'accueil"`;
+    }
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        window.deferredPrompt = e;
+        document.getElementById('installBtn').style.display = 'block';
+    });
+})();
+
+document.getElementById('installBtn').onclick = async () => {
+    if (window.deferredPrompt) {
+        window.deferredPrompt.prompt();
+        window.deferredPrompt = null;
+    }
+};
+
+function updateMediaSession() {
+    if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: translations[currentLang].title,
+            artist: "Masjid Live",
+            artwork: [{ src: '/icon-192.png', sizes: '192x192', type: 'image/png' }]
+        });
+    }
+}
+
+function setLanguage(lang) {
+    currentLang = lang;
+    localStorage.setItem('preferredLang', lang);
+    updateUI();
+}
+
+socket.on("connect", () => { if(unlocked) socket.emit("getState"); });
+document.addEventListener('DOMContentLoaded', updateUI);
+</script>
+</body>
+</html>
