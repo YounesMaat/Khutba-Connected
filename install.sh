@@ -87,7 +87,7 @@ termux-open-url http://127.0.0.1:3000
 # 6. DONE MESSAGE
 # ----------------------------
 echo ""
-echo "✅ INSTALL COMPLETE"
+echo "✅ INSTALL COMPLETE __"
 echo "📱 Open Termux Widget"
 echo "▶ Start Khutba"
 echo "🛑 Stop Khutba"
