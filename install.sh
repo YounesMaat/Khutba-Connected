@@ -29,12 +29,10 @@ cd Khutba-Connected/sermon-app
 echo "📦 Installing npm dependencies..."
 
 npm install
-
-# QR support (needed for your system)
 npm install qrcode qrcode-terminal
 
 # ----------------------------
-# 4. CREATE WIDGET SYSTEM
+# 4. CREATE WIDGETS ONLY
 # ----------------------------
 echo "📱 Creating Termux widgets..."
 
@@ -46,18 +44,18 @@ mkdir -p ~/.shortcuts
 cat > ~/.shortcuts/start-khutba << 'EOF'
 #!/data/data/com.termux/files/usr/bin/bash
 
-cd ~/Khutba-Connected/sermon-app
+cd ~/Khutba-Connected/sermon-app || exit
 
 echo "🚀 Starting Khutba server..."
 
-# kill only this app instance
+# Kill ONLY this server instance
 pkill -f "node server.js"
 
 termux-wake-lock
 
-nohup node server.js > server.log 2>&1 & disown
+nohup node server.js > server.log 2>&1 & disown < /dev/null
 
-sleep 2
+sleep 3
 
 termux-open-url http://127.0.0.1:3000
 EOF
@@ -83,7 +81,7 @@ chmod +x ~/.shortcuts/stop-khutba
 # 5. FINAL MESSAGE
 # ----------------------------
 echo ""
-echo "✅ INSTALL COMPLETE"
+echo "✅ INSTALL COMPLETE n"
 echo ""
 echo "📱 Add Termux Widget to home screen"
 echo "▶ Start Khutba"
