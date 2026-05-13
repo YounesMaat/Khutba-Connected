@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Jumu'aa Connected</title>
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.json">
+
+<script src="/socket.io/socket.io.js"></script>
+<!-- Inclusion de NoSleep.js pour empêcher la mise en veille sur iOS/Android -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/nosleep/0.12.0/NoSleep.min.js"></script>
+
+<style>
+    body {
+        margin: 0;
+        background: #020617;
+        color: white;
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        overflow: hidden;
+    }
+
+    .card {
+        width: 90%;
+        max-width: 380px;
+        text-align: center;
+        padding: 20px;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 32px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    #live {
+        font-weight: 800;
+        font-size: 12px;
+        letter-spacing: 1px;
+        color: #94a3b8;
+        margin-bottom: 10px;
+    }
+    
+    .is-live #live { color: #ef4444; }
+
+    button {
+        width: 100%;
+        padding: 20px;
+        border-radius: 16px;
+        border: none;
+        background: #3b82f6;
+        color: white;
+        font-size: 18px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: 0.3s;
+        box-shadow: 0 10px 20px rgba(59, 130, 246, 0.2);
+    }
+
+    button.active {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+        border: 1px solid #10b981;
+        box-shadow: none;
+        pointer-events: none;
+    }
+
+    .page {
+        font-size: 42px;
+        font-weight: 900;
+        margin: 20px 0;
+        color: #3b82f6;
+    }
+
+    .status {
+        font-size: 14px;
+        color: #94a3b8;
+        margin-bottom: 25px;
+    }
+</style>
+</head>
+
+<body>
+
+<div class="card" id="mainCard">
+    <div id="live">WAITING</div>
+    <h2 style="margin:0">Live Jumu'aa</h2>
+    <div class="page" id="page">...</div>
+    <div class="status" id="status">Appuyez pour activer l'audio</div>
+    <button id="btn" onclick="unlock()">🔓 Enable Audio</button>
+</div>
+
+<audio id="audio" playsinline></audio>
+
+<script>
+const socket = io();
+const audio = document.getElementById("audio");
+const noSleep = new NoSleep(); // Initialisation de NoSleep
+let unlocked = false;
+let lastAudio = null;
+
+const SILENT_SRC = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+
+function unlock() {
+    const status = document.getElementById("status");
+    const btn = document.getElementById("btn");
+
+    try {
+        unlocked = true;
+
+        // 1. Déverrouiller NoSleep (Empêche l'écran de s'éteindre sur iPhone)
+        noSleep.enable();
+
+        // 2. Déverrouiller la MediaSession
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: "Direct Jumu'aa",
+                artist: "Masjid Live",
+                artwork: [{ src: 'https://cdn-icons-png.flaticon.com/512/2907/2907230.png', sizes: '512x512', type: 'image/png' }]
+            });
+
+            navigator.mediaSession.setActionHandler('play', () => audio.play());
+            navigator.mediaSession.setActionHandler('pause', () => audio.pause());
+        }
+
+        // 3. Lancer le silence en boucle
+        audio.src = SILENT_SRC;
+        audio.loop = true;
+        audio.play().catch(e => console.log("Silent play deferred"));
+
+        // 4. UI Update
+        btn.classList.add("active");
+        btn.innerText = "✅ Audio & Screen Active";
+        document.getElementById("mainCard").classList.add("unlocked-ui");
+        status.innerText = "Prêt. L'écran restera allumé pour le direct.";
+
+        socket.emit("getState");
+
+    } catch (e) {
+        status.innerText = "Erreur d'activation";
+    }
+}
+
+socket.on("play", (data) => {
+    if (!unlocked || !data?.audio) return;
+    if (lastAudio === data.audio) return;
+
+    lastAudio = data.audio;
+
+    document.getElementById("mainCard").classList.add("is-live");
+    document.getElementById("live").innerText = "🔴 LIVE";
+    document.getElementById("page").innerText = data.page;
+    document.getElementById("status").innerText = "Lecture en cours...";
+
+    const url = window.location.origin + data.audio + "?t=" + Date.now();
+
+    try {
+        audio.pause();
+        audio.loop = false; 
+        audio.src = url;
+
+        setTimeout(() => {
+            audio.play().catch(err => {
+                console.log("Playback blocked:", err);
+                document.getElementById("status").innerText = "Relancez l'audio (clic)";
+            });
+        }, 150);
+
+    } catch (e) {
+        console.log("Stream Error:", e);
+    }
+});
+
+socket.on("connect", () => {
+    if (unlocked) socket.emit("getState");
+});
+
+// Fallback additionnel pour les navigateurs modernes supportant l'API native WakeLock
+if ('wakeLock' in navigator) {
+    let wakeLock = null;
+    const requestWakeLock = async () => {
+        try { wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
+    };
+    document.addEventListener('visibilitychange', () => {
+        if (wakeLock !== null && document.visibilityState === 'visible') requestWakeLock();
+    });
+    requestWakeLock();
+}
+</script>
+
+</body>
+</html>
