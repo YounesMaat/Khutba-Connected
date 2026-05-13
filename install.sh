@@ -61,7 +61,7 @@ cat > ~/.shortcuts/start-khutba << 'EOF'
 
 echo "🚀 Starting Khutba server..."
 
-cd "$HOME/Khutba-Connected/Phone_Android/sermon-app" || exit 1
+cd "$HOME/Khutba-Connected/Phone_Android" || exit 1
 
 pkill -f "node server.js"
 
