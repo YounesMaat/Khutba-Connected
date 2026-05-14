@@ -1,12 +1,51 @@
+
+بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ، الْحَمْدُ لِلَّهِ رَبِّ الْعَالَمِينَ، وَالصَّلَاةُ وَالسَّلَامُ عَلَى أَشْرَفِ الْمُرْسَلِينَ. نَحْمَدُ اللهَ وَنَشْكُرُهُ عَلَى نِعَمِهِ الْعَظِيمَةِ وَفَضْلِهِ الْمُسْتَمِرِّ، الَّذِي بِنِعْمَتِهِ تَتِمُّ الصَّالِحَاتُ.
+
+In the name of Allah, the Most Gracious, the Most Merciful. All praise and thanks are due to Allah, the Lord of all the worlds, and may peace and blessings be upon the most noble of messengers. We praise Allah and thank Him for His immense blessings and continuous grace, He by whose blessing good deeds are accomplished.
+
+---
+
 # 🚀 Khutba Connected
 
-Live synchronized khutbah system for mosques.
+Khutba Connected is a live mosque presentation and synchronized audio system designed to solve the problem of multilingual khutbah accessibility in mosques and Islamic centers.
 
-* 📖 Imam controls pages
-* 🔊 Listeners hear synchronized audio
-* 📱 Works on Android phones
-* 💻 Works on Windows
-* 🌐 Local network / offline capable
+In many countries, mosque communities are multilingual. The khutbah is often delivered in a single language — commonly Arabic — while many listeners may not fully understand it. This creates a major communication barrier for non-Arabic-speaking fidels, converts, visitors, younger generations, and international communities.
+
+Traditionally, simultaneous translation during the khutbah is difficult because:
+
+* it requires additional translators,
+* interrupts concentration,
+* creates noise inside the mosque,
+* or forces listeners to follow separate written translations.
+
+Khutba Connected provides a practical solution by allowing the imam or mosque administrator to prepare synchronized translated audio for each page of the khutbah beforehand.
+
+During the live khutbah:
+
+* the imam controls the PDF pages,
+* listeners connect from their phones and put on earphones,
+* and the translated audio automatically plays in sync with the current page.
+
+This enables listeners to follow the khutbah in their own language silently and in real time through their personal devices.
+
+The system works entirely on the local WiFi network and does not require internet access after installation.
+
+### Main Features
+
+* 📖 Live PDF khutbah viewer
+* 🔊 Synchronized translated audio playback
+* 🌍 Multilingual khutbah accessibility
+* 📱 Mobile-friendly interface
+* 💻 Windows support
+* 🤖 Android + Termux support
+* 📡 QR code instant connection
+* 🌐 Offline local network operation
+* 👥 Multiple listeners simultaneously
+* 🎙 Audio recording or upload per page
+* ⚡ Real-time page synchronization
+* 🕌 Designed for mosques and Islamic lessons
+
+Khutba Connected helps make khutbahs more accessible, understandable, and inclusive for multilingual Muslim communities.
 
 ---
 
@@ -46,25 +85,7 @@ After installation:
 
 # ⚡ INSTALL KHUTBA CONNECTED
 
-## ONE TAP INSTALL
-
-Open this link directly on your Android phone:
-
-```text id="10tx6l"
-termux://bash -c "curl -fsSL https://raw.githubusercontent.com/YounesMaat/Khutba-Connected/main/install.sh | bash"
-```
-
-OR tap:
-
-```text id="lgx6uq"
-▶ INSTALL IN TERMUX
-```
-
----
-
-## Manual Install (Fallback)
-
-If one-tap install does not work:
+## ONE STEP INSTALL
 
 Open Termux and paste:
 
@@ -94,7 +115,8 @@ After installation:
 4. Drag it to the home screen
 5. Select:
 
-   * khutba
+   * Start khutba
+   * Stop Khutba
 
 Done ✅
 
@@ -105,7 +127,7 @@ Done ✅
 Simply tap the:
 
 ```text id="0gmry1"
-khutba
+Start khutba
 ```
 
 home screen shortcut.
@@ -116,6 +138,8 @@ The server automatically:
 * displays QR code
 * shows local IP
 * allows listeners to connect
+* opens the imam interface
+
 
 Example:
 
@@ -132,6 +156,11 @@ All listener phones must:
 * be connected to same WiFi
 * open the displayed address
 * OR scan the QR code
+* Click enable audio
+
+Done ✅
+
+Once the Imam starts the Khutbah on his interface, the translation audios will play automatically on the listeners' phones
 
 ---
 
@@ -209,10 +238,7 @@ Windows Firewall may appear.
 Allow:
 
 * ✅ Private Networks
-
-Do NOT allow:
-
-* ❌ Public Networks
+* ✅ Public Networks
 
 ---
 
@@ -252,11 +278,6 @@ These contain:
 * Express
 * Socket.IO
 * PDF.js
-* FFmpeg
 * Termux
 
----
 
-# 👤 Author
-
-Created by Younes Maatallaoui
