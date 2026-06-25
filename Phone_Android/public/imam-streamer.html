@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Imam Streamer Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        :root {
+            /* Sophisticated, deep Islamic-inspired Emerald & Slate Palette */
+            --bg: #060a13;
+            --card: #0f1626;
+            --card-hover: #151e33;
+            
+            /* Primary Emerald Accent tones */
+            --accent: #10b981;
+            --accent-hover: #34d399;
+            --accent-glow: rgba(16, 185, 129, 0.15);
+            
+            /* Action Callouts */
+            --action-blue: #3b82f6;
+            --action-blue-hover: #60a5fa;
+            --danger-red: #ef4444;
+            --danger-red-hover: #f87171;
+            --warning: #f59e0b;
+            
+            /* Neutral Text Scales */
+            --text-main: #f8fafc;
+            --text-dim: #94a3b8;
+            --text-muted: #64748b;
+            
+            /* Precise Borders */
+            --border: rgba(255, 255, 255, 0.06);
+            --border-hover: rgba(16, 185, 129, 0.3);
+        }
+
+        * { 
+            box-sizing: border-box; 
+            font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; 
+            letter-spacing: -0.01em;
+        }
+
+        body { 
+            margin: 0; 
+            background: var(--bg); 
+            color: var(--text-main); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            flex-direction: column; 
+            gap: 24px; 
+            transition: direction 0.3s ease;
+            background-image: 
+                radial-gradient(circle at 0% 0%, rgba(16, 185, 129, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 100% 100%, rgba(59, 130, 246, 0.03) 0%, transparent 40%);
+            background-attachment: fixed;
+            position: relative;
+            padding: 20px;
+        }
+
+        /* PREMIUM GLASS CONTAINER */
+        .card { 
+            width: 100%; 
+            max-width: 440px; 
+            background: var(--card); 
+            border: 1px solid var(--border); 
+            border-radius: 28px; 
+            padding: 40px 32px; 
+            text-align: center; 
+            box-shadow: 0 24px 64px rgba(0, 0, 0, 0.4);
+            position: relative; 
+            transition: border-color 0.3s ease;
+        }
+
+        .title { 
+            font-size: 24px; 
+            font-weight: 800; 
+            margin-bottom: 6px; 
+            letter-spacing: -0.02em; 
+            background: linear-gradient(135deg, #ffffff 60%, #a7f3d0 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .subtitle { 
+            font-size: 11px; 
+            color: var(--accent); 
+            margin-bottom: 28px; 
+            text-transform: uppercase; 
+            letter-spacing: 0.08em; 
+            font-weight: 700; 
+        }
+        
+        /* LANGUAGE DROPBOX CONTAINER */
+        .khutbah-lang-section {
+            background: #04070d;
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 18px;
+            padding: 18px;
+            margin-bottom: 24px;
+            text-align: left;
+            transition: all 0.2s ease;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
+        }
+        body[dir="rtl"] .khutbah-lang-section { text-align: right; }
+        .khutbah-lang-section:hover { border-color: rgba(16, 185, 129, 0.15); }
+
+        .khutbah-lang-label {
+            font-size: 11px;
+            font-weight: 800;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        .khutbah-select {
+            width: 100%;
+            background: #020408;
+            border: 1px solid var(--border);
+            color: #ffffff;
+            padding: 12px 14px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .khutbah-select:focus { border-color: var(--accent); }
+
+        /* FLOATING INTERFACE SELECTOR */
+        .interface-lang-container {
+            position: absolute;
+            top: 24px;
+            right: 24px;
+            z-index: 10;
+            background: #020408;
+            border-radius: 12px;
+            padding: 2px;
+            box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.6);
+        }
+        .interface-select {
+            background: #020408;
+            border: 1px solid transparent;
+            color: var(--text-main);
+            padding: 10px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .interface-select:hover, .interface-select:focus { 
+            border-color: var(--border-hover);
+        }
+        body[dir="rtl"] .interface-lang-container { left: 24px; right: auto; }
+
+        /* DYNAMIC STATUS BADGE */
+        .status-pill { 
+            display: inline-flex; 
+            align-items: center; 
+            gap: 10px; 
+            background: rgba(0,0,0,0.3); 
+            padding: 10px 22px; 
+            border-radius: 99px; 
+            font-size: 12px; 
+            margin-bottom: 32px; 
+            font-weight: 800; 
+            letter-spacing: 0.05em;
+            border: 1px solid var(--border);
+        }
+        .dot { width: 10px; height: 10px; background: var(--text-muted); border-radius: 50%; transition: all 0.3s ease; }
+        .dot.active { background: var(--danger-red); box-shadow: 0 0 14px var(--danger-red); }
+        .dot.offline { background: var(--warning); box-shadow: 0 0 14px var(--warning); }
+
+        /* ACTION CONTROLS */
+        button { 
+            width: 100%; 
+            padding: 18px; 
+            border-radius: 16px; 
+            border: none; 
+            font-weight: 800; 
+            font-size: 16px; 
+            color: white; 
+            cursor: pointer; 
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            letter-spacing: 0.01em;
+        }
+
+        .btn-start { 
+            background: linear-gradient(135deg, var(--action-blue), #1d4ed8); 
+            box-shadow: 0 8px 24px rgba(37, 99, 235, 0.25);
+        }
+        .btn-start:hover { 
+            background: linear-gradient(135deg, var(--action-blue-hover), var(--action-blue)); 
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px rgba(37, 99, 235, 0.35);
+        }
+        .btn-start:active { transform: translateY(1px); }
+
+        .btn-stop { 
+            background: linear-gradient(135deg, var(--danger-red), #b91c1c); 
+            box-shadow: 0 8px 24px rgba(239, 68, 68, 0.25);
+        }
+        .btn-stop:hover { 
+            background: linear-gradient(135deg, var(--danger-red-hover), var(--danger-red)); 
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px rgba(239, 68, 68, 0.35);
+        }
+        .btn-stop:active { transform: translateY(1px); }
+
+        /* DIAGNOSTIC REAL-TIME LOG AREA */
+        .logs { 
+            margin-top: 28px; 
+            font-size: 11px; 
+            color: var(--text-muted); 
+            height: 90px; 
+            overflow-y: auto; 
+            text-align: left; 
+            background: rgba(0,0,0,0.25); 
+            padding: 14px; 
+            border-radius: 14px; 
+            font-family: monospace; 
+            border: 1px solid var(--border);
+            line-height: 1.6;
+        }
+        body[dir="rtl"] .logs { text-align: right; }
+        
+        /* FOOTER BACKWARD RE-ROUTE BUTTON */
+        .btn-back {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            padding: 14px 28px;
+            border-radius: 16px;
+            font-size: 14px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            width: 100%;
+            max-width: 440px;
+        }
+        .btn-back:hover {
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--text-main);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+    </style>
+</head>
+<body>
+
+<div class="interface-lang-container">
+    <select class="interface-select" id="interfaceLangSelect" onchange="changeInterfaceLanguage(this.value)">
+        <option value="fr">Français</option>
+        <option value="en">English</option>
+        <option value="ar">العربية</option>
+        <option value="es">Español</option>
+        <option value="de">Deutsch</option>
+        <option value="nl">Nederlands</option>
+    </select>
+</div>
+
+<div class="card">
+    <div class="title">🕌 Jumu'aa Connected</div>
+    <div class="subtitle" id="ui-subtitle">Console de Streaming de l'Imam</div>
+    
+   <div class="khutbah-lang-section">
+
+    <label class="khutbah-lang-label">Imam Settings</label>
+
+
+<div class="khutbah-lang-section">
+
+    <label class="khutbah-lang-label">Spoken Khutbah Language</label>
+
+    <select class="khutbah-select" id="khutbahSourceLanguage" onchange="updateKhutbahSource(this.value)">
+        <option value="ar">العربية (Arabic)</option>
+        <option value="en">English</option>
+        <option value="fr">Français (French)</option>
+        <option value="es">Español (Spanish)</option>
+        <option value="de">Deutsch (German)</option>
+        <option value="nl">Nederlands (Dutch)</option>
+    </select>
+
+    <!-- Dialect only for Arabic -->
+    <div id="arabicDialectBox" style="display:none; margin-top:10px;">
+
+        <label class="khutbah-lang-label">Dialect (optional)</label>
+
+        <select id="arabicDialect">
+            <option value="none">No dialect bias</option>
+            <option value="darija_ma">Moroccan Darija</option>
+            <option value="ar_eg">Egyptian Arabic</option>
+            <option value="ar_sa">Gulf Arabic</option>
+            <option value="ar_levant">Levantine Arabic</option>
+        </select>
+
+    </div>
+
+</div>
+
+    <div class="status-pill">
+        <div class="dot offline" id="statusDot"></div>
+        <span id="statusText">HORS LIGNE</span>
+    </div>
+
+    <button id="mainBtn" class="btn-start" onclick="toggleBroadcast()">Lancer le Stream Direct</button>
+    <div class="logs" id="logBox">Système prêt.</div>
+</div>
+
+<a href="/admin.html" class="btn-back" id="ui-back-btn">
+    ⬅️ Retour au Tableau de Bord
+</a>
+
+<script>
+
+    
+const translations = {
+    fr: {
+        subtitle: "Console de Streaming de l'Imam",
+        khutbahLabel: "Langue parlée de la Khutbah",
+        statusOffline: "HORS LIGNE",
+        statusOnline: "DIFFUSION EN DIRECT",
+        btnStart: "Lancer le Stream Direct",
+        btnStop: "Arrêter le Stream Direct",
+        backBtn: "⬅️ Retour au Tableau de Bord",
+        sysReady: "Système prêt.",
+        accessMic: "Accès au microphone...",
+        streamInfo: "Streaming : Séquences de blocs de 15s (chevauchement 2s).",
+        stopped: "Diffusion arrêtée.",
+        errRejected: "Erreur : Le serveur a rejeté l'initialisation.",
+        errGeneral: "Erreur : "
+    },
+    en: {
+        subtitle: "Imam Streaming Console",
+        khutbahLabel: "Spoken Khutbah Language",
+        statusOffline: "OFFLINE",
+        statusOnline: "LIVE BROADCAST",
+        btnStart: "Start Live Stream",
+        btnStop: "Stop Live Stream",
+        backBtn: "⬅️ Back to Admin Dashboard",
+        sysReady: "System ready.",
+        accessMic: "Accessing microphone...",
+        streamInfo: "Streaming: One 15s chunk every 15s (with a 2s overlap trailing window).",
+        stopped: "Broadcast stopped.",
+        errRejected: "Error: Server rejected initialization.",
+        errGeneral: "Error: "
+    },
+    ar: {
+        subtitle: "منصة بث الإمام",
+        khutbahLabel: "لغة الخطبة المنطوقة",
+        statusOffline: "غير متصل",
+        statusOnline: "بث مباشر",
+        btnStart: "بدء البث المباشر",
+        btnStop: "إيقاف البث المباشer",
+        backBtn: "⬅️ العودة إلى لوحة التحكم",
+        sysReady: "النظام جاهز.",
+        accessMic: "جاري الدخول إلى الميكروفون...",
+        streamInfo: "البث: إرسال مقطع مدته 15 ثانية كل 15 ثانية (مع تداخل لمدة ثانيتين).",
+        stopped: "تم إيقاف البث.",
+        errRejected: "خطأ: رفض الخادم التهيئة.",
+        errGeneral: "خطأ: "
+    },
+    es: {
+        subtitle: "Consola de Streaming del Imam",
+        khutbahLabel: "Idioma hablado de la Khutbah",
+        statusOffline: "FUERA DE LÍNEA",
+        statusOnline: "TRANSMISIÓN EN VIVO",
+        btnStart: "Iniciar Transmisión",
+        btnStop: "Detener Transmisión",
+        backBtn: "⬅️ Volver al Panel de Control",
+        sysReady: "Sistema listo.",
+        accessMic: "Accediendo al micrófono...",
+        streamInfo: "Transmisión: Un fragmento de 15s cada 15s (con ventana de superposición de 2s).",
+        stopped: "Transmisión detenida.",
+        errRejected: "Error: El servidor rechazó la inicialización.",
+        errGeneral: "Error: "
+    },
+    de: {
+        subtitle: "Imam Streaming-Konsole",
+        khutbahLabel: "Gesprochene Khutbah-Sprache",
+        statusOffline: "OFFLINE",
+        statusOnline: "LIVE-ÜBERTRAGUNG",
+        btnStart: "Live-Stream starten",
+        btnStop: "Live-Stream stoppen",
+        backBtn: "⬅️ Zurück zum Dashboard",
+        sysReady: "System bereit.",
+        accessMic: "Zugriff auf Mikrofon...",
+        streamInfo: "Streaming: Ein 15s Block alle 15s (mit 2s Überlappungsfenster).",
+        stopped: "Übertragung gestoppt.",
+        errRejected: "Fehler: Server hat die Initialisierung abgelehnt.",
+        errGeneral: "Fehler: "
+    },
+    nl: {
+        subtitle: "Imam Streaming Console",
+        khutbahLabel: "Gesproken Khutbah-taal",
+        statusOffline: "OFFLINE",
+        statusOnline: "LIVE-UTZENDING",
+        btnStart: "Start Live Stream",
+        btnStop: "Stop Live Stream",
+        backBtn: "⬅️ Terug naar Dashboard",
+        sysReady: "Systeem gereed.",
+        accessMic: "Microfoon openen...",
+        streamInfo: "Streaming: Één chunk van 15s elke 15s (met een overlapping van 2s).",
+        stopped: "Uitzending gestopt.",
+        errRejected: "Fout: Server heeft initialisatie geweigerd.",
+        errGeneral: "Fout: "
+    }
+};
+
+
+const dialectOptions = [
+  { code: "ma", label: "Morocco" },
+  { code: "dz", label: "Algeria" },
+  { code: "tn", label: "Tunisia" },
+  { code: "eg", label: "Egypt" },
+  { code: "ly", label: "Libya" },
+  { code: "sa", label: "Saudi Arabia" },
+  { code: "ae", label: "UAE" },
+  { code: "jo", label: "Jordan" },
+  { code: "ps", label: "Palestine" },
+  { code: "sy", label: "Syria" },
+  { code: "iq", label: "Iraq" }
+];
+
+
+window.onload = () => {
+    updateImamInfo();
+};
+
+
+
+const socket = io();
+let streamInstance = null;
+let active = false;
+let currentLang = localStorage.getItem('preferredLang') || 'fr';
+
+
+function updateImamInfo() {
+    const countryCode = document.getElementById("imamCountry").value;
+
+    socket.emit("imam-info", {
+        countryCode
+    });
+
+    log("🕌 Imam context updated: " + countryCode);
+}
+
+
+socket.on("imam-info", (info) => {
+    imamInfo = {
+        countryCode: info.countryCode,
+        dialect: dialectMap[info.countryCode]?.dialect || "MSA"
+    };
+
+    console.log("🕌 Imam info updated:", imamInfo);
+
+    io.emit("imam-info", imamInfo);
+});
+
+
+const CHUNK_DURATION = 5000; 
+const OVERLAP_SIZE   = 0;  
+const NEXT_SPAWN_DELAY = CHUNK_DURATION - OVERLAP_SIZE; 
+
+socket.on("live-status", (data) => {
+    if (!data.active && active) haltTracks();
+});
+
+socket.on("khutbah-source-sync", (sourceLang) => {
+    document.getElementById("khutbahSourceLanguage").value = sourceLang;
+});
+
+function log(m) {
+    const b = document.getElementById("logBox");
+    b.innerHTML += `<br>> ${m}`;
+    b.scrollTop = b.scrollHeight;
+}
+
+
+function updateKhutbahSource(value) {
+    khutbahSourceLanguage = value;
+
+    const dialectBox = document.getElementById("arabicDialectBox");
+
+    if (value === "ar") {
+        dialectBox.style.display = "block";
+    } else {
+        dialectBox.style.display = "none";
+    }
+
+    socket.emit("khutbah-source-change", value);
+
+    console.log("Spoken language updated:", value);
+}
+
+
+document.addEventListener("DOMContentLoaded", () => {
+    const select = document.getElementById("khutbahSourceLanguage");
+
+    // force initial UI sync
+    updateKhutbahSource(select.value);
+});
+
+
+function changeInterfaceLanguage(lang) {
+    currentLang = lang;
+    localStorage.setItem('preferredLang', lang);
+    
+    const t = translations[lang] || translations.en;
+    document.body.dir = lang === 'ar' ? 'rtl' : 'ltr';
+    
+    document.getElementById('ui-subtitle').innerText = t.subtitle;
+    document.getElementById('ui-khutbah-label').innerText = t.khutbahLabel;
+    document.getElementById('ui-back-btn').innerText = t.backBtn;
+    
+    const mainBtn = document.getElementById("mainBtn");
+    const statusText = document.getElementById("statusText");
+    
+    if (active) {
+        statusText.innerText = t.statusOnline;
+        mainBtn.innerText = t.btnStop;
+    } else {
+        statusText.innerText = t.statusOffline;
+        mainBtn.innerText = t.btnStart;
+    }
+
+    if (document.getElementById("logBox").innerText === "Système prêt." || 
+        document.getElementById("logBox").innerText === "System ready." || 
+        document.getElementById("logBox").innerText === "النظام جاهز." ||
+        document.getElementById("logBox").innerText === "Sistema listo." ||
+        document.getElementById("logBox").innerText === "System bereit." ||
+        document.getElementById("logBox").innerText === "Systeem gereed.") {
+        document.getElementById("logBox").innerText = t.sysReady;
+    }
+}
+
+function haltTracks() {
+    active = false;
+    const t = translations[currentLang] || translations.en;
+    document.getElementById("statusDot").className = "dot offline";
+    document.getElementById("statusText").innerText = t.statusOffline;
+    document.getElementById("mainBtn").className = "btn-start";
+    document.getElementById("mainBtn").innerText = t.btnStart;
+    if (streamInstance) {
+        streamInstance.getTracks().forEach(track => track.stop());
+        streamInstance = null;
+    }
+    log(t.stopped);
+}
+
+async function toggleBroadcast() {
+    const t = translations[currentLang] || translations.en;
+    const statusDot = document.getElementById("statusDot");
+    if (!active) {
+        try {
+            const res = await fetch("/live/start", { method: "POST" }).then(r => r.json());
+            if (!res.ok) throw new Error(t.errRejected);
+
+            active = true;
+            statusDot.className = "dot active";
+            document.getElementById("statusText").innerText = t.statusOnline;
+            document.getElementById("mainBtn").className = "btn-stop";
+            document.getElementById("mainBtn").innerText = t.btnStop;
+
+            log(t.accessMic);
+            streamInstance = await navigator.mediaDevices.getUserMedia({ 
+                audio: { channelCount: 1, sampleRate: 16000, echoCancellation: true } 
+            });
+
+            log(t.streamInfo);
+            runSequencedRecorder();
+        } catch (err) {
+            log(err.message.includes("Error") || err.message.includes("خطأ") || err.message.includes("Fehler") || err.message.includes("Fout") ? err.message : `${t.errGeneral}${err.message}`);
+            haltTracks();
+        }
+    } else {
+        fetch("/live/stop", { method: "POST" }).catch(()=>{});
+        haltTracks();
+    }
+}
+
+function runSequencedRecorder() {
+    if (!active) return;
+
+    const recorder = new MediaRecorder(streamInstance, { mimeType: "audio/webm" });
+    let nextTrackSpawned = false;
+
+    recorder.ondataavailable = async (e) => {
+        if (e.data && e.data.size > 3000 && active) {
+            const fd = new FormData();
+            fd.append("audio", e.data);
+            log(`Upload chunk: ${Math.round(e.data.size/1024)} KB...`);
+            fetch("/live/chunk", { method: "POST", body: fd }).catch(err => console.error(err));
+        }
+    };
+
+    recorder.start();
+
+    setTimeout(() => {
+        if (active) {
+            nextTrackSpawned = true;
+            runSequencedRecorder(); 
+        }
+    }, NEXT_SPAWN_DELAY);
+
+    setTimeout(() => {
+        if (recorder.state !== "inactive") {
+            recorder.stop();
+        }
+    }, CHUNK_DURATION);
+}
+
+changeInterfaceLanguage(currentLang);
+document.getElementById('interfaceLangSelect').value = currentLang;
+</script>
+</body>
+</html>

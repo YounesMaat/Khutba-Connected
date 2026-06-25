@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Imam Live Translation</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        body { margin: 0; font-family: Arial, sans-serif; background: #050914; color: white; display: flex; justify-content: center; align-items: center; height: 100vh; position: relative; }
+        .card { width: 92%; max-width: 420px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 24px; padding: 20px; text-align: center; backdrop-filter: blur(12px); }
+        .status { font-size: 12px; color: #94a3b8; margin-top: 10px; }
+        .live { font-size: 14px; font-weight: bold; margin-bottom: 10px; color: #ef4444; }
+        .title { font-size: 22px; font-weight: 800; margin-bottom: 10px; }
+        .translation { margin-top: 15px; font-size: 18px; line-height: 1.6; color: #e2e8f0; min-height: 100px; padding: 15px; background: rgba(255,255,255,0.02); border-radius: 14px; text-align: left; }
+        .audio-bar { margin-top: 20px; display: none; }
+        button { width: 100%; padding: 14px; border-radius: 14px; border: none; font-weight: bold; background: #3b82f6; color: white; cursor: pointer; font-size: 15px; margin-top: 10px;}
+        button:hover { background: #2563eb; }
+        .badge { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 11px; font-weight: bold; background: rgba(239,68,68,0.2); color: #ef4444; margin-bottom: 10px; }
+        .queue-status { font-size: 11px; color: #64748b; margin-top: 5px; }
+        
+        .lang-selector { margin: 15px 0; display: flex; flex-direction: column; gap: 8px; text-align: left; }
+        .lang-selector label { font-size: 12px; color: #94a3b8; font-weight: bold; text-transform: uppercase; }
+        select { width: 100%; padding: 12px; background: #0f172a; color: white; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; font-size: 14px; outline: none; cursor: pointer; }
+        
+        /* Floating Interface Language Selector in the top right corner */
+        .interface-lang-container { position: absolute; top: 15px; right: 15px; z-index: 10; }
+        .interface-lang-container select { width: auto; padding: 6px 12px; font-size: 12px; border-radius: 8px; background: rgba(15, 23, 42, 0.8); backdrop-filter: blur(4px); }
+    </style>
+</head>
+<body>
+
+<div class="interface-lang-container">
+    <select id="interfaceLangSelect" onchange="changeInterfaceLanguage()">
+        <option value="arabic">🇦🇪 العربية</option>
+        <option value="english" selected>🇬🇧 English</option>
+        <option value="french">🇫🇷 Français</option>
+        <option value="spanish">🇪🇸 Español</option>
+        <option value="german">🇩🇪 Deutsch</option>
+        <option value="dutch">🇳🇱 Nederlands</option>
+    </select>
+</div>
+
+<div class="card">
+    <div class="badge" id="badge">WAITING</div>
+    <div class="title" id="uiTitle">🕌 AI Imam Translation</div>
+    <div class="live" id="live">OFFLINE</div>
+    
+    <div class="lang-selector">
+        <label for="langSelect" id="uiLangLabel">Target Language</label>
+        <select id="langSelect" onchange="changeLanguage()">
+            <option value="arabic">🇦🇪 Arabic</option>
+            <option value="english" selected>🇬🇧 English</option>
+            <option value="french">🇫🇷 French</option>
+            <option value="spanish">🇪🇸 Spanish</option>
+            <option value="german">🇩🇪 German</option>
+            <option value="dutch">🇳🇱 Dutch</option>
+        </select>
+    </div>
+
+    <div class="status" id="status">Connecting to mosque server...</div>
+    <div class="translation" id="text">Waiting for Khutbah translation to begin...</div>
+    <div class="queue-status" id="queueInfo">Queue: 0 items</div>
+
+    <div class="audio-bar">
+        <audio id="audio" controls></audio>
+    </div>
+    <div style="margin-top:20px;">
+        <button id="audioBtn" onclick="requestAudio()">🔊 Connect Live Audio</button>
+    </div>
+</div>
+
+<script>
+const socket = io();
+const audio = document.getElementById("audio");
+const langSelect = document.getElementById("langSelect");
+const interfaceLangSelect = document.getElementById("interfaceLangSelect");
+let enabled = false;
+
+
+const allTargetOptions = [
+    { value: "arabic", label: "🇦🇪 Arabic", code: "ar" },
+    { value: "english", label: "🇬🇧 English", code: "en" },
+    { value: "french", label: "🇫🇷 French", code: "fr" },
+    { value: "spanish", label: "🇪🇸 Spanish", code: "es" },
+    { value: "german", label: "🇩🇪 German", code: "de" },
+    { value: "dutch", label: "🇳🇱 Dutch", code: "nl" }
+];
+
+// UI Static Translation Dictionary Mapping
+const translations = {
+    arabic: {
+        title: "🕌 ترجمة الإمام بالذكاء الاصطناعي",
+        label: "اللغة المستهدفة",
+        connecting: "جاري الاتصال بخادم المسجد...",
+        connected: "تم الاتصال بخادم المسجد.",
+        waitingTrans: "في انتظار بدء ترجمة الخطبة...",
+        driverSynced: "تم مزامنة برنامج الصوت.",
+        connectAudioBtn: "🔊 ربط الصوت المباشر",
+        tapAudioInfo: "اضغط على 'ربط الصوت المباشر' لمزامنة الكلام.",
+        queue: "الانتظار: {count} عناصر",
+        offline: "غير متصل",
+        live: "🔴 مباشر",
+        waitingBadge: "في الانتظار",
+        progressBadge: "جاري التنفيذ",
+        noTransNeeded: "الخطبة تُلقى حالياً بلغتك المختارة ({lang}). لا توجد حاجة للترجمة.",
+        switchedFeed: "تم تحويل قناة الترجمة إلى {lang}.",
+        connectedFeed: "متصل ببث الترجمة باللغة {lang}."
+    },
+    english: {
+        title: "🕌 AI Imam Translation",
+        label: "Target Language",
+        connecting: "Connecting to mosque server...",
+        connected: "Connected to mosque server.",
+        waitingTrans: "Waiting for Khutbah translation to begin...",
+        driverSynced: "Audio driver synced.",
+        connectAudioBtn: "🔊 Connect Live Audio",
+        tapAudioInfo: "Tap 'Connect Live Audio' to sync speech.",
+        queue: "Queue: {count} items",
+        offline: "OFFLINE",
+        live: "🔴 LIVE",
+        waitingBadge: "WAITING",
+        progressBadge: "IN PROGRESS",
+        noTransNeeded: "The Khutbah is currently being delivered in your chosen language ({lang}). No translation is needed.",
+        switchedFeed: "Switched translation feed to {lang}.",
+        connectedFeed: "Connected to feed translation in {lang}."
+    },
+    french: {
+        title: "🕌 Traduction AI de l'Imam",
+        label: "Langue Cible",
+        connecting: "Connexion au serveur de la mosquée...",
+        connected: "Connecté au serveur de la mosquée.",
+        waitingTrans: "En attente du début de la traduction de la Khutbah...",
+        driverSynced: "Pilote audio synchronisé.",
+        connectAudioBtn: "🔊 Connecter l'audio en direct",
+        tapAudioInfo: "Appuyez sur 'Connecter l'audio en direct' pour synchroniser la parole.",
+        queue: "File d'attente: {count} éléments",
+        offline: "HORS LIGNE",
+        live: "🔴 EN DIRECT",
+        waitingBadge: "EN ATTENTE",
+        progressBadge: "EN COURS",
+        noTransNeeded: "La Khutbah est actuellement prononcée dans la langue de votre choix ({lang}). Aucune traduction n'est nécessaire.",
+        switchedFeed: "Flux de traduction configuré sur {lang}.",
+        connectedFeed: "Connecté au flux de traduction en {lang}."
+    },
+    spanish: {
+        title: "🕌 Traducción IA del Imam",
+        label: "Idioma de Destino",
+        connecting: "Conectando al servidor de la mezquita...",
+        connected: "Conectado al servidor de la mezquita.",
+        waitingTrans: "Esperando que comience la traducción de la Khutbah...",
+        driverSynced: "Controlador de audio sincronizado.",
+        connectAudioBtn: "🔊 Conectar audio en vivo",
+        tapAudioInfo: "Toque 'Conectar audio en vivo' para sincronizar el habla.",
+        queue: "Cola: {count} elementos",
+        offline: "FUERA DE LÍNEA",
+        live: "🔴 EN VIVO",
+        waitingBadge: "ESPERANDO",
+        progressBadge: "EN PROGRESO",
+        noTransNeeded: "La Khutbah se está emitiendo actualmente en el idioma elegido ({lang}). No se necesita traducción.",
+        switchedFeed: "Canal de traducción cambiado a {lang}.",
+        connectedFeed: "Conectado a la transmisión de traducción en {lang}."
+    },
+    german: {
+        title: "🕌 KI-Imam Übersetzung",
+        label: "Zielsprache",
+        connecting: "Verbindung zum Moscheeserver wird hergestellt...",
+        connected: "Mit Moscheeserver verbunden.",
+        waitingTrans: "Warten auf den Beginn der Khutbah-Übersetzung...",
+        driverSynced: "Audiotreiber synchronisiert.",
+        connectAudioBtn: "🔊 Live-Audio verbinden",
+        tapAudioInfo: "Tippen Sie auf 'Live-Audio verbinden', um die Sprache zu synchronisieren.",
+        queue: "Warteschlange: {count} Elemente",
+        offline: "OFFLINE",
+        live: "🔴 LIVE",
+        waitingBadge: "WARTEN",
+        progressBadge: "IN ARBEIT",
+        noTransNeeded: "Die Khutbah wird derzeit in Ihrer gewählten Sprache gehalten ({lang}). Es ist keine Übersetzung erforderlich.",
+        switchedFeed: "Übersetzungsfeed auf {lang} umgestellt.",
+        connectedFeed: "Verbunden mit Übersetzungsfeed in {lang}."
+    },
+    dutch: {
+        title: "🕌 KI-Imam Vertaling",
+        label: "Doeltaal",
+        connecting: "Verbinden met moskee server...",
+        connected: "Verbonden met moskee server.",
+        waitingTrans: "Wachten tot de Khutbah-vertaling begint...",
+        driverSynced: "Audiodriver gesynchroniseerd.",
+        connectAudioBtn: "🔊 Live-audio verbinden",
+        tapAudioInfo: "Tik op 'Live-audio verbinden' om spraak te synchroniseren.",
+        queue: "Wachtrij: {count} items",
+        offline: "OFFLINE",
+        live: "🔴 LIVE",
+        waitingBadge: "WACHTEN",
+        progressBadge: "IN BEHANDELING",
+        noTransNeeded: "De Khutbah wordt momenteel uitgesproken in uw gekozen taal ({lang}). Er is geen vertaling nodig.",
+        switchedFeed: "Vertalingsfeed omgeschakeld naar {lang}.",
+        connectedFeed: "Verbonden met vertalingsfeed in {lang}."
+    }
+};
+
+let lastKnownSourceCode = "";
+let currentSelectedValue = "english";
+let currentInterfaceValue = "english";
+let isBlockedByImamLanguage = false;
+let isServerLive = false;
+
+
+const audioQueue = [];
+let isPlaying = false;
+
+
+
+function translateStaticUI() {
+    const t = translations[currentInterfaceValue] || translations.english;
+    
+    document.getElementById("uiTitle").innerText = t.title;
+    document.getElementById("uiLangLabel").innerText = t.label;
+    document.getElementById("audioBtn").innerText = t.connectAudioBtn;
+    
+    // Direction handling for Arabic interface
+    if (currentInterfaceValue === "arabic") {
+        document.body.style.direction = "rtl";
+        document.getElementById("text").style.textAlign = "right";
+    } else {
+        document.body.style.direction = "ltr";
+        document.getElementById("text").style.textAlign = "left";
+    }
+    
+    // Status update handling
+    if (document.getElementById("status").innerText.includes("Connecting") || document.getElementById("status").innerText.includes("جاري الاتصال")) {
+        document.getElementById("status").innerText = t.connecting;
+    } else if (document.getElementById("status").innerText.includes("Connected to mosque") || document.getElementById("status").innerText.includes("تم الاتصال")) {
+        document.getElementById("status").innerText = t.connected;
+    } else if (document.getElementById("status").innerText.includes("Audio driver") || document.getElementById("status").innerText.includes("تم مزامنة")) {
+        document.getElementById("status").innerText = t.driverSynced;
+    } else if (document.getElementById("status").innerText.includes("Tap 'Connect") || document.getElementById("status").innerText.includes("اضغط على")) {
+        document.getElementById("status").innerText = t.tapAudioInfo;
+    }
+
+    // Live Badge elements handling
+    const live = document.getElementById("live");
+    const badge = document.getElementById("badge");
+    if (isServerLive) {
+        live.innerText = t.live;
+        badge.innerText = t.progressBadge;
+    } else {
+        live.innerText = t.offline;
+        badge.innerText = t.waitingBadge;
+    }
+
+    updateQueueUI();
+}
+
+function updateQueueUI() {
+    const t = translations[currentInterfaceValue] || translations.english;
+    document.getElementById("queueInfo").innerText = t.queue.replace("{count}", audioQueue.length);
+}
+
+function changeInterfaceLanguage() {
+    currentInterfaceValue = interfaceLangSelect.value;
+    translateStaticUI();
+    updateStatusMessageText();
+}
+
+function updateStatusMessageText() {
+    const t = translations[currentInterfaceValue] || translations.english;
+    const selectedOption = allTargetOptions.find(o => o.value === currentSelectedValue);
+    
+    if (isBlockedByImamLanguage) {
+        document.getElementById("text").innerText = t.noTransNeeded.replace("{lang}", selectedOption ? selectedOption.label : '');
+    } else if (!isServerLive) {
+        document.getElementById("text").innerText = t.waitingTrans;
+    } else {
+        document.getElementById("text").innerText = t.connectedFeed.replace("{lang}", currentSelectedValue);
+    }
+}
+
+function changeLanguage() {
+    currentSelectedValue = langSelect.value;
+    console.log("Switching target channel stream to:", currentSelectedValue);
+    
+    // Clear playback queues on selection changes
+    audio.pause();
+    audio.src = "";
+    audio.load();
+
+    isPlaying = false;
+    audioQueue.length = 0;
+    
+    translateStaticUI();
+
+    const selectedOption = allTargetOptions.find(o => o.value === currentSelectedValue);
+    const t = translations[currentInterfaceValue] || translations.english;
+    
+    // Check if the current choice matches the tracked Imam language selection state
+    if (selectedOption && selectedOption.code === lastKnownSourceCode) {
+        isBlockedByImamLanguage = true;
+        socket.emit("select-language", "none"); // Unregister translation streams on server
+        document.getElementById("text").innerText = t.noTransNeeded.replace("{lang}", selectedOption.label);
+    } else {
+        isBlockedByImamLanguage = false;
+        socket.emit("select-language", currentSelectedValue);
+        if (!isServerLive) {
+            document.getElementById("text").innerText = t.waitingTrans;
+        } else {
+            document.getElementById("text").innerText = t.switchedFeed.replace("{lang}", currentSelectedValue);
+        }
+    }
+}
+
+function requestAudio() {
+    enabled = true;
+
+    const audio = document.getElementById("audio");
+
+    // unlock iOS audio context
+    audio.src = "";
+    audio.load();
+
+    audio.play().then(() => {
+        audio.pause();
+    }).catch(() => {});
+
+    const t = translations[currentInterfaceValue] || translations.english;
+    document.getElementById("status").innerText = t.driverSynced;
+    document.getElementById("audioBtn").style.display = "none";
+}
+
+
+async function playNext() {
+    if (
+        isPlaying ||
+        !enabled ||
+        audioQueue.length === 0 ||
+        isBlockedByImamLanguage
+    ) {
+        return;
+    }
+
+    isPlaying = true;
+
+    const item = audioQueue.shift();
+
+    updateQueueUI();
+
+    if (item.text) {
+        document.getElementById("text").innerText = item.text;
+    }
+
+    try {
+        audio.pause();
+
+        audio.src = item.url;
+        audio.load();
+
+        await audio.play();
+
+    } catch (err) {
+        console.log("Playback failed:", err);
+        isPlaying = false;
+        playNext();
+    }
+}
+
+
+audio.addEventListener("ended", () => {
+    isPlaying = false;
+    playNext();
+});
+
+audio.addEventListener("error", () => {
+    isPlaying = false;
+    playNext();
+});
+
+
+
+socket.on("live-status", (data) => {
+    const live = document.getElementById("live");
+    const badge = document.getElementById("badge");
+    const t = translations[currentInterfaceValue] || translations.english;
+
+    isServerLive = !!data.active;
+
+    if (data.active) {
+        live.innerText = t.live;
+        badge.innerText = t.progressBadge;
+        badge.style.background = "rgba(16,185,129,0.2)";
+        badge.style.color = "#10b981";
+    } else {
+        live.innerText = t.offline;
+        badge.innerText = t.waitingBadge;
+        badge.style.background = "rgba(239,68,68,0.2)";
+        badge.style.color = "#ef4444";
+
+        audio.pause();
+        audio.src = "";
+        audio.load();
+
+        isPlaying = false;
+        audioQueue.length = 0;
+        updateQueueUI();
+        
+        if (isBlockedByImamLanguage) {
+            const currentOption = allTargetOptions.find(o => o.value === currentSelectedValue);
+            document.getElementById("text").innerText = t.noTransNeeded.replace("{lang}", currentOption ? currentOption.label : '');
+        } else {
+            document.getElementById("text").innerText = t.waitingTrans;
+        }
+    }
+});
+
+// Continuously keep track of the Imam's selection state without modifying the dropdown list structure or applying static fallback configurations
+socket.on("khutbah-source-sync", (sourceCode) => {
+    lastKnownSourceCode = sourceCode;
+    const imamOption = allTargetOptions.find(o => o.code === sourceCode);
+    const t = translations[currentInterfaceValue] || translations.english;
+
+    if (imamOption && currentSelectedValue === imamOption.value) {
+        isBlockedByImamLanguage = true;
+        socket.emit("select-language", "none");
+        
+        audio.pause();
+        audio.src = "";
+        audio.load();
+
+        isPlaying = false;
+        audioQueue.length = 0;
+        updateQueueUI();
+        document.getElementById("text").innerText = t.noTransNeeded.replace("{lang}", imamOption.label);
+    } else {
+        isBlockedByImamLanguage = false;
+        socket.emit("select-language", currentSelectedValue);
+        
+        // If system drops blocking state, check if queue processing needs to resume immediately
+        if (document.getElementById("text").innerText.includes("delivered in your chosen language") || 
+            document.getElementById("text").innerText.includes("بلغتك المختارة") ||
+            document.getElementById("text").innerText.includes("dans la langue de votre choix")) {
+            document.getElementById("text").innerText = t.connectedFeed.replace("{lang}", currentSelectedValue);
+        }
+    }
+});
+
+socket.on("live-audio", (data) => {
+    if (!enabled || !data?.audio || isBlockedByImamLanguage) return;
+
+    const url =
+        window.location.origin +
+        data.audio +
+        "?t=" +
+        Date.now();
+
+    audioQueue.push({
+        url,
+        text: data.text || ""
+    });
+
+    updateQueueUI();
+
+    playNext();
+});
+
+socket.on("connect", () => {
+    const t = translations[currentInterfaceValue] || translations.english;
+    document.getElementById("status").innerText = t.connected;
+    changeLanguage();
+});
+</script>
+</body>
+</html>
